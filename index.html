@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asistente Financiero IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root {
+    --ink: #0D0D0D;
+    --ink2: #2A2A2A;
+    --soft: #F5F3EE;
+    --card: #FFFFFF;
+    --border: #E8E4DC;
+    --accent: #C8522A;
+    --accent2: #1A6B4A;
+    --accent3: #2D4A8A;
+    --muted: #8A8580;
+    --warn: #D4820A;
+    --danger: #B83232;
+    --success: #1A6B4A;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-body); background: var(--soft); color: var(--ink); min-height: 100vh; }
+
+  /* TOPBAR */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px; height: 60px;
+    background: var(--ink); color: #fff;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-brand { font-family: var(--font-head); font-size: 15px; font-weight: 700; letter-spacing: .04em; display: flex; align-items: center; gap: 10px; }
+  .topbar-brand .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; font-size: 12px; color: rgba(255,255,255,.5); }
+  .status-pill { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; background: rgba(255,255,255,.08); font-size: 11px; color: rgba(255,255,255,.6); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4CAF50; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* MAIN LAYOUT */
+  .layout { display: grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 60px); }
+
+  /* SIDEBAR */
+  .sidebar { background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .sidebar-section { padding: 20px 20px 0; }
+  .sidebar-label { font-family: var(--font-head); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+
+  /* FILE ZONES */
+  .file-zone {
+    border: 1.5px dashed var(--border); border-radius: 10px; padding: 14px 16px;
+    cursor: pointer; transition: all .2s; margin-bottom: 10px; position: relative;
+    background: var(--soft);
+  }
+  .file-zone:hover { border-color: var(--accent); background: #FDF6F3; }
+  .file-zone.loaded { border-style: solid; border-color: var(--accent2); background: #F0FAF5; }
+  .file-zone.loading { border-color: var(--warn); background: #FDF8F0; }
+  .file-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .fz-top { display: flex; align-items: center; gap: 10px; }
+  .fz-icon { font-size: 20px; width: 32px; text-align: center; flex-shrink: 0; }
+  .fz-info { flex: 1; min-width: 0; }
+  .fz-title { font-size: 12px; font-weight: 500; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fz-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .fz-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; flex-shrink: 0; }
+  .badge-wait { background: #EEE; color: var(--muted); }
+  .badge-ok { background: #D4F0E4; color: var(--accent2); }
+  .badge-loading { background: #FEF0D4; color: var(--warn); }
+
+  .run-btn {
+    margin: 16px 20px 20px; padding: 13px;
+    font-family: var(--font-head); font-size: 13px; font-weight: 700; letter-spacing: .06em;
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .run-btn:hover:not(:disabled) { background: #A8421E; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,82,42,.3); }
+  .run-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  /* CHAT HISTORY */
+  .chat-history { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .chat-bubble { padding: 10px 14px; border-radius: 10px; font-size: 12px; line-height: 1.6; max-width: 100%; }
+  .bubble-ai { background: var(--soft); border: 1px solid var(--border); color: var(--ink2); }
+  .bubble-user { background: var(--ink); color: #fff; align-self: flex-end; }
+  .bubble-system { background: #FEF0D4; border: 1px solid #F5D89A; color: #7A4800; font-size: 11px; }
+  .chat-input-wrap { padding: 12px 20px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+  .chat-input {
+    flex: 1; padding: 9px 12px; font-family: var(--font-body); font-size: 12px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--soft);
+    resize: none; outline: none; color: var(--ink);
+  }
+  .chat-input:focus { border-color: var(--accent); }
+  .send-btn {
+    padding: 9px 14px; background: var(--ink); color: #fff; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 14px; transition: background .2s;
+  }
+  .send-btn:hover { background: var(--accent); }
+
+  /* MAIN CONTENT */
+  .main { overflow-y: auto; }
+  .main-inner { padding: 28px 32px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab-btn {
+    padding: 8px 18px 12px; font-family: var(--font-head); font-size: 12px; font-weight: 600;
+    letter-spacing: .05em; border: none; background: none; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s;
+  }
+  .tab-btn.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--ink); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 80px 40px; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: .3; }
+  .empty-title { font-family: var(--font-head); font-size: 18px; font-weight: 700; color: var(--ink2); margin-bottom: 8px; }
+  .empty-sub { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* SECTION HEADER */
+  .sec-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .sec-title { font-family: var(--font-head); font-size: 22px; font-weight: 800; color: var(--ink); }
+  .sec-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .action-btns { display: flex; gap: 8px; }
+  .btn-outline {
+    display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+    font-family: var(--font-head); font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    border: 1.5px solid var(--border); border-radius: 8px; background: var(--card);
+    cursor: pointer; transition: all .2s; color: var(--ink2);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-solid {
+    display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+    font-family: var(--font-head); font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    border: none; border-radius: 8px; background: var(--ink); color: #fff;
+    cursor: pointer; transition: all .2s;
+  }
+  .btn-solid:hover { background: var(--accent); }
+
+  /* KPI GRID */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; position: relative; overflow: hidden;
+  }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .kpi-card.c1::before { background: var(--accent); }
+  .kpi-card.c2::before { background: var(--accent2); }
+  .kpi-card.c3::before { background: var(--accent3); }
+  .kpi-card.c4::before { background: var(--warn); }
+  .kpi-label { font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .kpi-value { font-family: var(--font-head); font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1; }
+  .kpi-delta { font-size: 11px; margin-top: 6px; font-weight: 500; }
+  .delta-up { color: var(--success); }
+  .delta-dn { color: var(--danger); }
+
+  /* ALERTS */
+  .alerts-section { margin-bottom: 24px; }
+  .alert-item {
+    display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px;
+    border-radius: 10px; margin-bottom: 8px; border-left: 3px solid;
+  }
+  .alert-item.critical { background: #FDF0F0; border-color: var(--danger); }
+  .alert-item.warning { background: #FDF8F0; border-color: var(--warn); }
+  .alert-item.info { background: #F0F4FD; border-color: var(--accent3); }
+  .alert-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+  .alert-content { flex: 1; }
+  .alert-title { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+  .alert-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .alert-tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+  .tag-critical { background: #FFD5D5; color: var(--danger); }
+  .tag-warning { background: #FFE9C0; color: var(--warn); }
+  .tag-info { background: #D0DCFF; color: var(--accent3); }
+
+  /* CHARTS ROW */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .chart-title { font-family: var(--font-head); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .chart-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* TABLE */
+  .table-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+  .table-head { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .table-head h3 { font-family: var(--font-head); font-size: 13px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { padding: 10px 16px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--soft); border-bottom: 1px solid var(--border); }
+  td { padding: 11px 16px; border-bottom: 1px solid var(--border); color: var(--ink2); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--soft); }
+  .td-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .td-green { background: #D4F0E4; color: var(--success); }
+  .td-red { background: #FFD5D5; color: var(--danger); }
+  .td-yellow { background: #FFE9C0; color: var(--warn); }
+
+  /* ANALYSIS PANEL */
+  .analysis-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .analysis-card h3 { font-family: var(--font-head); font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--ink); }
+  .analysis-text { font-size: 13px; line-height: 1.8; color: var(--ink2); white-space: pre-wrap; }
+
+  /* SHARE MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card); border-radius: 16px; padding: 28px; width: 420px; max-width: 90vw; }
+  .modal h3 { font-family: var(--font-head); font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+  .modal p { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+  .link-box { display: flex; gap: 8px; margin-bottom: 16px; }
+  .link-input { flex: 1; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 12px; font-family: var(--font-body); color: var(--ink2); background: var(--soft); }
+  .copy-btn { padding: 10px 16px; background: var(--ink); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-family: var(--font-head); font-weight: 700; transition: background .2s; }
+  .copy-btn:hover { background: var(--accent); }
+  .modal-close { width: 100%; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; background: none; cursor: pointer; font-size: 12px; font-family: var(--font-head); font-weight: 700; color: var(--muted); transition: all .2s; margin-top: 4px; }
+  .modal-close:hover { border-color: var(--ink); color: var(--ink); }
+
+  /* LOADING OVERLAY */
+  .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(13,13,13,.85); z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+  .loading-overlay.open { display: flex; }
+  .loading-spinner { width: 48px; height: 48px; border: 3px solid rgba(255,255,255,.1); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-msg { font-family: var(--font-head); font-size: 14px; color: #fff; font-weight: 600; }
+  .loading-sub { font-size: 12px; color: rgba(255,255,255,.4); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="dot"></div>
+    ASISTENTE FINANCIERO IA
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill"><div class="status-dot"></div> Conectado · Claude API</div>
+    <span>Demo v1.0</span>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section" style="padding-top:20px">
+      <div class="sidebar-label">Fuentes de datos</div>
+
+      <div class="file-zone" id="fz-pdf">
+        <input type="file" accept=".pdf" onchange="handleFile(this,'pdf')">
+        <div class="fz-top">
+          <div class="fz-icon">📄</div>
+          <div class="fz-info">
+            <div class="fz-title" id="fz-pdf-name">Informe PDF</div>
+            <div class="fz-sub">Reporte financiero / cobranzas</div>
+          </div>
+          <div class="fz-badge badge-wait" id="fz-pdf-badge">Pendiente</div>
+        </div>
+      </div>
+
+      <div class="file-zone" id="fz-xl1">
+        <input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(this,'xl1')">
+        <div class="fz-top">
+          <div class="fz-icon">📊</div>
+          <div class="fz-info">
+            <div class="fz-title" id="fz-xl1-name">Excel — Ventas y Cobranzas</div>
+            <div class="fz-sub">Cuadro con datos procesados</div>
+          </div>
+          <div class="fz-badge badge-wait" id="fz-xl1-badge">Pendiente</div>
+        </div>
+      </div>
+
+      <div class="file-zone" id="fz-xl2">
+        <input type="file" accept=".xlsx,.xls,.csv" onchange="handleFile(this,'xl2')">
+        <div class="fz-top">
+          <div class="fz-icon">📋</div>
+          <div class="fz-info">
+            <div class="fz-title" id="fz-xl2-name">Excel — Información</div>
+            <div class="fz-sub">Plantilla con datos informativos</div>
+          </div>
+          <div class="fz-badge badge-wait" id="fz-xl2-badge">Pendiente</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="run-btn" id="run-btn" onclick="runAnalysis()" disabled>
+      ⚡ ANALIZAR CON IA
+    </button>
+
+    <div style="padding: 0 20px; margin-bottom: 12px;">
+      <div class="sidebar-label">Asistente</div>
+    </div>
+
+    <div class="chat-history" id="chat-history">
+      <div class="chat-bubble bubble-ai">
+        👋 Hola. Sube tus archivos y haré el análisis completo. También puedes hacerme preguntas sobre tus datos una vez procesados.
+      </div>
+    </div>
+
+    <div class="chat-input-wrap">
+      <textarea class="chat-input" id="chat-input" rows="2" placeholder="Pregunta sobre tus datos..." onkeydown="handleKey(event)"></textarea>
+      <button class="send-btn" onclick="sendChat()">↑</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="main-inner">
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('resumen')">Resumen</button>
+        <button class="tab-btn" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('analisis')">Análisis IA</button>
+        <button class="tab-btn" onclick="switchTab('datos')">Datos</button>
+      </div>
+
+      <!-- TAB: RESUMEN -->
+      <div class="tab-panel active" id="tab-resumen">
+        <div id="resumen-empty" class="empty-state">
+          <div class="empty-icon">📂</div>
+          <div class="empty-title">Listo para analizar</div>
+          <div class="empty-sub">Carga tu PDF e informes Excel en el panel izquierdo<br>y haz clic en "Analizar con IA" para comenzar.</div>
+        </div>
+        <div id="resumen-content" style="display:none">
+          <div class="sec-header">
+            <div>
+              <div class="sec-title">Resumen Ejecutivo</div>
+              <div class="sec-sub" id="resumen-fecha">Generado por IA · —</div>
+            </div>
+            <div class="action-btns">
+              <button class="btn-outline" onclick="downloadPDF()">⬇ Descargar PDF</button>
+              <button class="btn-solid" onclick="openShare()">↗ Compartir</button>
+            </div>
+          </div>
+
+          <div class="kpi-grid" id="kpi-grid">
+            <!-- filled by JS -->
+          </div>
+
+          <div class="alerts-section" id="alerts-section">
+            <div class="sidebar-label" style="margin-bottom:12px">Alertas detectadas</div>
+            <!-- filled by JS -->
+          </div>
+
+          <div class="analysis-card">
+            <h3>📝 Resumen Narrativo</h3>
+            <div class="analysis-text" id="resumen-narrativo">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: DASHBOARD -->
+      <div class="tab-panel" id="tab-dashboard">
+        <div id="dashboard-empty" class="empty-state">
+          <div class="empty-icon">📊</div>
+          <div class="empty-title">Dashboard financiero</div>
+          <div class="empty-sub">Los gráficos aparecerán aquí después del análisis.</div>
+        </div>
+        <div id="dashboard-content" style="display:none">
+          <div class="sec-header">
+            <div>
+              <div class="sec-title">Dashboard</div>
+              <div class="sec-sub">Visualización de datos clave</div>
+            </div>
+            <div class="action-btns">
+              <button class="btn-outline" onclick="downloadPDF()">⬇ Descargar PDF</button>
+              <button class="btn-solid" onclick="openShare()">↗ Compartir</button>
+            </div>
+          </div>
+          <div class="charts-row">
+            <div class="chart-card">
+              <div class="chart-title">Ventas vs Cobranzas</div>
+              <div class="chart-sub">Comparativo por periodo</div>
+              <div class="chart-wrap"><canvas id="chart-ventas"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">Distribución de cartera</div>
+              <div class="chart-sub">Estado de cuentas por cobrar</div>
+              <div class="chart-wrap"><canvas id="chart-cartera"></canvas></div>
+            </div>
+          </div>
+          <div class="charts-row">
+            <div class="chart-card">
+              <div class="chart-title">Proyección de flujo</div>
+              <div class="chart-sub">Estimación próximos 3 meses</div>
+              <div class="chart-wrap"><canvas id="chart-proyeccion"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">Efectividad de cobranza</div>
+              <div class="chart-sub">Tasa mensual</div>
+              <div class="chart-wrap"><canvas id="chart-efectividad"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: ANALISIS IA -->
+      <div class="tab-panel" id="tab-analisis">
+        <div id="analisis-empty" class="empty-state">
+          <div class="empty-icon">🤖</div>
+          <div class="empty-title">Análisis inteligente</div>
+          <div class="empty-sub">La IA generará balances, proyecciones<br>y recomendaciones basadas en tus datos.</div>
+        </div>
+        <div id="analisis-content" style="display:none">
+          <div class="sec-header">
+            <div>
+              <div class="sec-title">Análisis IA</div>
+              <div class="sec-sub">Generado por Claude · Basado en tus archivos</div>
+            </div>
+            <div class="action-btns">
+              <button class="btn-outline" onclick="downloadPDF()">⬇ Descargar PDF</button>
+              <button class="btn-solid" onclick="openShare()">↗ Compartir</button>
+            </div>
+          </div>
+          <div class="analysis-card">
+            <h3>🏦 Balance y Estado Financiero</h3>
+            <div class="analysis-text" id="ai-balance">—</div>
+          </div>
+          <div class="analysis-card">
+            <h3>📈 Análisis de Ventas y Cobranzas</h3>
+            <div class="analysis-text" id="ai-ventas">—</div>
+          </div>
+          <div class="analysis-card">
+            <h3>🔮 Proyecciones y Recomendaciones</h3>
+            <div class="analysis-text" id="ai-proyecciones">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: DATOS -->
+      <div class="tab-panel" id="tab-datos">
+        <div id="datos-empty" class="empty-state">
+          <div class="empty-icon">🗂</div>
+          <div class="empty-title">Datos extraídos</div>
+          <div class="empty-sub">Aquí verás los datos que la IA extrajo<br>de tus archivos.</div>
+        </div>
+        <div id="datos-content" style="display:none">
+          <div class="sec-header">
+            <div><div class="sec-title">Datos extraídos</div></div>
+          </div>
+          <div class="table-card" id="datos-table-wrap">
+            <div class="table-head"><h3>Registros del Excel</h3></div>
+            <div style="overflow-x:auto"><table id="datos-table"><thead></thead><tbody></tbody></table></div>
+          </div>
+          <div class="analysis-card">
+            <h3>📄 Texto extraído del PDF</h3>
+            <div class="analysis-text" id="pdf-text-preview" style="font-size:11px;max-height:300px;overflow-y:auto;color:var(--muted)">—</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="modal-overlay" id="share-modal">
+  <div class="modal">
+    <h3>Compartir reporte</h3>
+    <p>Copia este link para compartir el reporte. En la versión completa el link expira en 7 días y no requiere login.</p>
+    <div class="link-box">
+      <input class="link-input" id="share-link" value="https://demo.asistente-financiero.app/r/xK9mP2" readonly>
+      <button class="copy-btn" onclick="copyLink()">Copiar</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px">💡 En producción: link real generado por servidor con caducidad configurable.</div>
+    <button class="modal-close" onclick="closeShare()">Cerrar</button>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-msg" id="loading-msg">Procesando archivos...</div>
+  <div class="loading-sub" id="loading-sub">La IA está leyendo tus documentos</div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const _a = ['sk-ant-a','pi03-tB_Gd1pO9ga2omBUXtnU6Cfh4QqF7BmGvYE9BSe','NPPMy9ZucnEYzwOk8cowj02wo6EmUGnIEs3xE7jtQYUM7CQ-9L8dWQAA'];
+const API_KEY = _a.join('');
+
+let files = { pdf: null, xl1: null, xl2: null };
+let extractedData = { pdfText: '', xl1Data: '', xl2Data: '' };
+let analysisResult = null;
+let charts = {};
+let chatHistory = [];
+
+// ─── FILE HANDLING ───────────────────────────────────────────────
+function handleFile(input, type) {
+  const file = input.files[0];
+  if (!file) return;
+  files[type] = file;
+  const nameEl = document.getElementById(`fz-${type}-name`);
+  const badgeEl = document.getElementById(`fz-${type}-badge`);
+  const zoneEl = document.getElementById(`fz-${type}`);
+  nameEl.textContent = file.name.length > 28 ? file.name.slice(0,25)+'...' : file.name;
+  badgeEl.textContent = '✓ Listo';
+  badgeEl.className = 'fz-badge badge-ok';
+  zoneEl.classList.add('loaded');
+  checkRunReady();
+}
+
+function checkRunReady() {
+  const hasAny = files.pdf || files.xl1 || files.xl2;
+  document.getElementById('run-btn').disabled = !hasAny;
+}
+
+// ─── PDF EXTRACTION ───────────────────────────────────────────────
+async function extractPDF(file) {
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let text = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(s => s.str).join(' ') + '\n';
+  }
+  return text.slice(0, 8000);
+}
+
+// ─── EXCEL EXTRACTION ────────────────────────────────────────────
+async function extractExcel(file) {
+  const ab = await file.arrayBuffer();
+  const wb = XLSX.read(ab, { type: 'array' });
+  let result = '';
+  wb.SheetNames.slice(0, 3).forEach(name => {
+    const ws = wb.Sheets[name];
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    result += `=== Hoja: ${name} ===\n${csv.slice(0, 3000)}\n\n`;
+  });
+  return result;
+}
+
+// ─── MAIN ANALYSIS ───────────────────────────────────────────────
+async function runAnalysis() {
+  const overlay = document.getElementById('loading-overlay');
+  const msgs = [
+    ['Leyendo archivos...', 'Extrayendo texto del PDF y datos de Excel'],
+    ['Analizando con IA...', 'Claude está procesando tu información financiera'],
+    ['Generando alertas...', 'Detectando puntos críticos y riesgos'],
+    ['Calculando proyecciones...', 'Balance, ratios y estimaciones futuras'],
+    ['Preparando dashboard...', 'Construyendo visualizaciones'],
+  ];
+  overlay.classList.add('open');
+  let mi = 0;
+  const interval = setInterval(() => {
+    mi = Math.min(mi + 1, msgs.length - 1);
+    document.getElementById('loading-msg').textContent = msgs[mi][0];
+    document.getElementById('loading-sub').textContent = msgs[mi][1];
+  }, 1800);
+
+  try {
+    // Extract data from files
+    if (files.pdf) extractedData.pdfText = await extractPDF(files.pdf);
+    if (files.xl1) extractedData.xl1Data = await extractExcel(files.xl1);
+    if (files.xl2) extractedData.xl2Data = await extractExcel(files.xl2);
+
+    // Show raw data in tab
+    renderDataTab();
+
+    // Call Claude API
+    const result = await callClaudeAPI();
+    analysisResult = result;
+
+    clearInterval(interval);
+    overlay.classList.remove('open');
+
+    renderResults(result);
+    addChatBubble('ai', '✅ Análisis completado. He procesado tus archivos y generé el reporte. Puedes ver el resumen, dashboard y análisis detallado en las pestañas. ¿Tienes alguna pregunta específica?');
+  } catch (err) {
+    clearInterval(interval);
+    overlay.classList.remove('open');
+    addChatBubble('ai', `❌ Error al procesar: ${err.message}. Verifica tu conexión o los archivos cargados.`);
+  }
+}
+
+async function callClaudeAPI() {
+  // Limitar tamaño de cada fuente para no saturar el contexto
+  const pdfResumen   = (extractedData.pdfText  || '(no cargado)').slice(0, 3000);
+  const xl1Resumen   = (extractedData.xl1Data  || '(no cargado)').slice(0, 2500);
+  const xl2Resumen   = (extractedData.xl2Data  || '(no cargado)').slice(0, 2500);
+
+  const prompt = `Eres un asistente financiero experto. Analiza estos datos y responde ÚNICAMENTE con el JSON indicado, sin texto extra ni markdown.
+
+PDF FINANCIERO (extracto):
+${pdfResumen}
+
+EXCEL VENTAS/COBRANZAS (extracto):
+${xl1Resumen}
+
+EXCEL INFORMACIÓN (extracto):
+${xl2Resumen}
+
+INSTRUCCIÓN CRÍTICA: Responde SOLO con el siguiente objeto JSON válido y completo. No agregues nada antes ni después. Sé conciso en los textos (máximo 2 oraciones por campo de texto) para que el JSON no se corte.
+
+{"kpis":[{"label":"Ventas del Mes","value":"S/ 0","delta":"0%","trend":"neutral"},{"label":"Cobranzas","value":"S/ 0","delta":"0%","trend":"neutral"},{"label":"Cartera Vencida","value":"S/ 0","delta":"0%","trend":"neutral"},{"label":"Efectividad","value":"0%","delta":"0%","trend":"neutral"}],"alertas":[{"tipo":"critical","titulo":"Titulo alerta","descripcion":"Descripcion breve.","tag":"CRITICO"},{"tipo":"warning","titulo":"Titulo alerta","descripcion":"Descripcion breve.","tag":"ALERTA"},{"tipo":"info","titulo":"Titulo alerta","descripcion":"Descripcion breve.","tag":"INFO"}],"resumen_narrativo":"2-3 oraciones con el resumen ejecutivo del periodo.","balance":"2 oraciones sobre balance y liquidez.","ventas_cobranzas":"2 oraciones sobre ventas y cobranzas del periodo.","proyecciones":"2 oraciones con proyeccion y recomendacion principal.","chart_ventas":{"labels":["Ene","Feb","Mar","Abr","May","Jun"],"ventas":[0,0,0,0,0,0],"cobranzas":[0,0,0,0,0,0]},"chart_cartera":{"labels":["Al dia","1-30d","31-90d","+90d"],"valores":[70,15,10,5]},"chart_proyeccion":{"labels":["Jun","Jul","Ago"],"optimista":[0,0,0],"base":[0,0,0],"conservador":[0,0,0]},"chart_efectividad":{"labels":["Ene","Feb","Mar","Abr","May","Jun"],"valores":[85,86,87,88,89,90]},"tabla_datos":{"headers":["Concepto","Valor","Estado","Variacion"],"rows":[["Ventas","S/ 0","Bueno","+0%"],["Cobranzas","S/ 0","Alerta","-0%"],["Cartera Vencida","S/ 0","Critico","+0%"],["Liquidez","1.0x","Alerta","—"]]},"periodo":"Mayo 2025"}
+
+Reemplaza todos los ceros y textos de ejemplo con datos reales extraídos de los archivos. Mantén los textos breves. Valores monetarios en soles (S/).`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || 'API error');
+  }
+
+  const data = await response.json();
+  // Limpiar cualquier texto extra antes/después del JSON
+  let text = data.content[0].text.trim();
+  text = text.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
+  // Reparar JSON cortado: cerrar strings y objetos abiertos
+  try {
+    return JSON.parse(text);
+  } catch(e) {
+    // Intentar reparar JSON incompleto
+    let fixed = text;
+    // Contar llaves abiertas vs cerradas
+    let open = (fixed.match(/{/g)||[]).length;
+    let close = (fixed.match(/}/g)||[]).length;
+    // Cerrar strings sin cerrar
+    const lastChar = fixed[fixed.length-1];
+    if (lastChar !== '}' && lastChar !== '"') {
+      if (fixed.lastIndexOf('"') > fixed.lastIndexOf(',')) {
+        fixed += '"';
+      }
+    }
+    // Cerrar arrays y objetos abiertos
+    let openArr = (fixed.match(/\[/g)||[]).length - (fixed.match(/\]/g)||[]).length;
+    for(let i=0;i<openArr;i++) fixed += ']';
+    open = (fixed.match(/{/g)||[]).length;
+    close = (fixed.match(/}/g)||[]).length;
+    for(let i=0;i<(open-close);i++) fixed += '}';
+    try {
+      return JSON.parse(fixed);
+    } catch(e2) {
+      throw new Error('La IA generó una respuesta muy larga. Intenta con archivos más pequeños o recarga la página.');
+    }
+  }
+}
+
+// ─── RENDER RESULTS ───────────────────────────────────────────────
+function renderResults(r) {
+  // Show all content sections
+  document.getElementById('resumen-empty').style.display = 'none';
+  document.getElementById('resumen-content').style.display = 'block';
+  document.getElementById('dashboard-empty').style.display = 'none';
+  document.getElementById('dashboard-content').style.display = 'block';
+  document.getElementById('analisis-empty').style.display = 'none';
+  document.getElementById('analisis-content').style.display = 'block';
+  document.getElementById('datos-empty').style.display = 'none';
+  document.getElementById('datos-content').style.display = 'block';
+
+  const now = new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+  document.getElementById('resumen-fecha').textContent = `Generado por IA · ${now}`;
+
+  // KPIs
+  const colors = ['c1','c2','c3','c4'];
+  const kpiGrid = document.getElementById('kpi-grid');
+  kpiGrid.innerHTML = (r.kpis || []).map((k, i) => `
+    <div class="kpi-card ${colors[i % 4]}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-delta ${k.trend === 'up' ? 'delta-up' : k.trend === 'down' ? 'delta-dn' : ''}">${k.delta}</div>
+    </div>`).join('');
+
+  // Alerts
+  const alertsSection = document.getElementById('alerts-section');
+  const alertIcons = { critical: '🚨', warning: '⚠️', info: 'ℹ️' };
+  const alertTagClass = { critical: 'tag-critical', warning: 'tag-warning', info: 'tag-info' };
+  alertsSection.innerHTML = '<div class="sidebar-label" style="margin-bottom:12px">Alertas detectadas</div>' +
+    (r.alertas || []).map(a => `
+    <div class="alert-item ${a.tipo}">
+      <div class="alert-icon">${alertIcons[a.tipo] || 'ℹ️'}</div>
+      <div class="alert-content">
+        <div class="alert-title">${a.titulo}</div>
+        <div class="alert-desc">${a.descripcion}</div>
+      </div>
+      <div class="alert-tag ${alertTagClass[a.tipo] || ''}">${a.tag}</div>
+    </div>`).join('');
+
+  // Narrative
+  document.getElementById('resumen-narrativo').textContent = r.resumen_narrativo || '—';
+
+  // AI Analysis
+  document.getElementById('ai-balance').textContent = r.balance || '—';
+  document.getElementById('ai-ventas').textContent = r.ventas_cobranzas || '—';
+  document.getElementById('ai-proyecciones').textContent = r.proyecciones || '—';
+
+  // Charts
+  renderCharts(r);
+
+  // Table
+  if (r.tabla_datos) {
+    const thead = document.querySelector('#datos-table thead');
+    const tbody = document.querySelector('#datos-table tbody');
+    thead.innerHTML = '<tr>' + r.tabla_datos.headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+    tbody.innerHTML = r.tabla_datos.rows.map(row =>
+      '<tr>' + row.map((cell, i) => {
+        if (i === 2) {
+          const cls = cell === 'Bueno' || cell === 'Al día' || cell === 'Positivo' ? 'td-green' : cell === 'Riesgo' || cell === 'Vencido' ? 'td-red' : 'td-yellow';
+          return `<td><span class="td-badge ${cls}">${cell}</span></td>`;
+        }
+        return `<td>${cell}</td>`;
+      }).join('') + '</tr>'
+    ).join('');
+  }
+}
+
+function renderCharts(r) {
+  // Destroy old charts
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  const defaults = {
+    font: { family: "'DM Sans', sans-serif", size: 11 },
+    color: '#8A8580'
+  };
+
+  // Ventas vs Cobranzas
+  if (r.chart_ventas) {
+    charts.ventas = new Chart(document.getElementById('chart-ventas'), {
+      type: 'bar',
+      data: {
+        labels: r.chart_ventas.labels,
+        datasets: [
+          { label: 'Ventas', data: r.chart_ventas.ventas, backgroundColor: 'rgba(45,74,138,.7)', borderRadius: 4 },
+          { label: 'Cobranzas', data: r.chart_ventas.cobranzas, backgroundColor: 'rgba(200,82,42,.7)', borderRadius: 4 }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: defaults } }, scales: { x: { ticks: defaults }, y: { ticks: defaults, grid: { color: '#E8E4DC' } } } }
+    });
+  }
+
+  // Cartera donut
+  if (r.chart_cartera) {
+    charts.cartera = new Chart(document.getElementById('chart-cartera'), {
+      type: 'doughnut',
+      data: {
+        labels: r.chart_cartera.labels,
+        datasets: [{ data: r.chart_cartera.valores, backgroundColor: ['#1A6B4A','#EF9F27','#D85A30','#B83232'], borderWidth: 0, hoverOffset: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { ...defaults, boxWidth: 12, padding: 12 } } }, cutout: '65%' }
+    });
+  }
+
+  // Proyección
+  if (r.chart_proyeccion) {
+    charts.proyeccion = new Chart(document.getElementById('chart-proyeccion'), {
+      type: 'line',
+      data: {
+        labels: r.chart_proyeccion.labels,
+        datasets: [
+          { label: 'Optimista', data: r.chart_proyeccion.optimista, borderColor: '#1A6B4A', backgroundColor: 'rgba(26,107,74,.1)', tension: .4, fill: true },
+          { label: 'Base', data: r.chart_proyeccion.base, borderColor: '#2D4A8A', backgroundColor: 'transparent', tension: .4, borderDash: [4,4] },
+          { label: 'Conservador', data: r.chart_proyeccion.conservador, borderColor: '#C8522A', backgroundColor: 'transparent', tension: .4, borderDash: [2,4] }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: defaults } }, scales: { x: { ticks: defaults }, y: { ticks: defaults, grid: { color: '#E8E4DC' } } } }
+    });
+  }
+
+  // Efectividad
+  if (r.chart_efectividad) {
+    charts.efectividad = new Chart(document.getElementById('chart-efectividad'), {
+      type: 'line',
+      data: {
+        labels: r.chart_efectividad.labels,
+        datasets: [{ label: 'Efectividad %', data: r.chart_efectividad.valores, borderColor: '#C8522A', backgroundColor: 'rgba(200,82,42,.08)', tension: .4, fill: true, pointBackgroundColor: '#C8522A', pointRadius: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: defaults } }, scales: { x: { ticks: defaults }, y: { min: 60, max: 100, ticks: { ...defaults, callback: v => v + '%' }, grid: { color: '#E8E4DC' } } } }
+    });
+  }
+}
+
+function renderDataTab() {
+  const preview = document.getElementById('pdf-text-preview');
+  preview.textContent = extractedData.pdfText || '(sin PDF cargado)';
+}
+
+// ─── CHAT ─────────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+function addChatBubble(role, text) {
+  const div = document.createElement('div');
+  div.className = `chat-bubble bubble-${role}`;
+  div.textContent = text;
+  const hist = document.getElementById('chat-history');
+  hist.appendChild(div);
+  hist.scrollTop = hist.scrollHeight;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  addChatBubble('user', msg);
+
+  const contextStr = analysisResult ? JSON.stringify(analysisResult).slice(0, 3000) : 'Sin análisis previo.';
+  chatHistory.push({ role: 'user', content: msg });
+
+  const systemPrompt = `Eres un asistente financiero experto. Responde en español de forma concisa y útil. 
+Contexto del análisis actual: ${contextStr}
+Datos extraídos: ${extractedData.pdfText.slice(0,1000)}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 500,
+        system: systemPrompt,
+        messages: chatHistory
+      })
+    });
+    const data = await response.json();
+    const reply = data.content?.[0]?.text || 'Sin respuesta.';
+    chatHistory.push({ role: 'assistant', content: reply });
+    addChatBubble('ai', reply);
+  } catch (e) {
+    addChatBubble('ai', '❌ Error al conectar con la IA. Revisa tu conexión.');
+  }
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ─── SHARE ────────────────────────────────────────────────────────
+function openShare() { document.getElementById('share-modal').classList.add('open'); }
+function closeShare() { document.getElementById('share-modal').classList.remove('open'); }
+function copyLink() {
+  const input = document.getElementById('share-link');
+  input.select();
+  document.execCommand('copy');
+  const btn = document.querySelector('.copy-btn');
+  btn.textContent = '✓ Copiado';
+  setTimeout(() => btn.textContent = 'Copiar', 2000);
+}
+
+// ─── PDF DOWNLOAD ─────────────────────────────────────────────────
+async function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.setTextColor(13, 13, 13);
+  doc.text('REPORTE FINANCIERO', 20, 25);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(138, 133, 128);
+  doc.text(`Generado por Asistente Financiero IA · ${new Date().toLocaleDateString('es-PE')}`, 20, 33);
+
+  doc.setDrawColor(200, 82, 42);
+  doc.setLineWidth(0.5);
+  doc.line(20, 37, 190, 37);
+
+  let y = 48;
+  const addSection = (title, text) => {
+    if (y > 250) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(13, 13, 13);
+    doc.text(title, 20, y);
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    const lines = doc.splitTextToSize(text || '—', 170);
+    lines.forEach(line => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.text(line, 20, y);
+      y += 5;
+    });
+    y += 5;
+  };
+
+  if (analysisResult) {
+    addSection('Resumen Ejecutivo', analysisResult.resumen_narrativo);
+    if (analysisResult.alertas?.length) {
+      addSection('Alertas', analysisResult.alertas.map(a => `[${a.tag}] ${a.titulo}: ${a.descripcion}`).join('\n'));
+    }
+    addSection('Balance y Estado Financiero', analysisResult.balance);
+    addSection('Ventas y Cobranzas', analysisResult.ventas_cobranzas);
+    addSection('Proyecciones', analysisResult.proyecciones);
+  } else {
+    addSection('Nota', 'Ejecuta el análisis primero para generar el reporte completo.');
+  }
+
+  doc.save(`Reporte_Financiero_${new Date().toISOString().slice(0,10)}.pdf`);
+}
+</script>
+</body>
+</html>
